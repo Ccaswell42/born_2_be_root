@@ -1,0 +1,131 @@
+ФАЙЛОВАЯ СИСТЕМА
+Создание зашифрованного раздела на /dev/sda5
+Создание всех необходимых подразделов на зашифрованном
+
+	УСТАНОВКА
+Установка системы
+Выбор только опции ssh server
+
+	ПЕРВЫЙ ЗАПУСК И ПРОВЕРКА
+// проверяем структуру разделов
+$lsblk
+// логинимся под рутом (именно с - !)
+$su -
+// устанавливаем sudo
+$apt-get install sudo
+
+	НАСТРОЙКА SSH
+// правим конфиг ssh
+$nano /etc/ssh/sshd_config
+// Меняем строки
+Port 4242
+PermitRootLogin no
+
+	ROOT-ПРАВА ПОЛЬЗОВАТЕЛЮ
+$usermod -aG root <user>
+// бэкапим конфиг sudo
+$cp /etc/sudoers /etc/sudoers.backup
+// правим конфиг sudo
+$nano /etc/sudoers
+// добавляем строку с именем пользователя
+<user>    ALL=(ALL:ALL) ALL
+// перезагружаемся
+$reboot
+
+	ДОСТУП ЧЕРЕЗ ТЕРМИНАЛ
+Проброс портов в virtualbox
+$ssh <user>@localhost -p 4242
+
+	НАСТРОЙКА ВХОДА ПОД SUDO
+// логинимся под рутом
+$su -
+// проверяем группы пользователей
+$groups root
+$groups <user>
+// проверяем и/или меняем имя машины
+$nano /etc/hostname
+// проверяем имя хоста
+$nano /etc/hosts
+// ещё раз правим конфиг судо
+$nano /etc/sudoers
+// меняем фразу при неудачном вводе
+Defaults  badpass_message="Your phrase"
+// Устанавливаем количество попыток ввода
+Defaults        passwd_tries=3
+
+	СОЗДАНИЕ ГРУППЫ
+// создаём группу
+$addgroup user42
+// помещаем туда нашего пользователя
+$usermod -aG user42 <user>
+
+	ФАЙЕРВОЛ
+// устанавливаем ufw
+$apt-get install ufw
+// убеждаемся, что он не работает
+$ufw status
+// запускаем файервол
+$ufw enable
+// убеждаемся, что он работает
+$ufw status
+// даём дефолтные настройки
+$sudo ufw default deny incoming
+$sudo ufw default allow outgoing
+// разрешаем наш порт ssh
+$ufw allow 4242
+
+	ПОЛИТИКА ПАРОЛЕЙ
+// правим файл политики паролей
+%nano /etc/login.defs
+// меняем значения строк как здесь:
+PASS_MAX_DAYS 30
+PASS_MIN_DAYS 2
+PASS_WARN_AGE 7
+// устанавливаем утилиту политики
+$apt-get install libpam-pwquality
+// на всякий пожарный бэкапим конфиг
+$cp /etc/pam.d/common-password /etc/pam.d/common-password.backup
+// правим конфиг
+$nano /etc/pam.d/common-password
+// дописываем в эту строку следующим образом:
+password        requisite	pam_pwquality.so retry=3 maxrepeat=3 minlen=10 dcredit=-1 ucredit=-1 reject_username difok=7
+password        requisite	pam_pwquality.so retry=3 maxrepeat=3 minlen=10 dcredit=-1 ucredit=-1 reject_username enforce_for_root
+// меняем пароли пользователей
+// в соответствии с политикой:
+$passwd user
+$passwd root
+
+	НАСТРОЙКИ TTY
+// правим конфиг tty
+$nano /etc/systemd/logind.conf
+// раскомментировать и изменить:
+NAutoVTs=8
+ReserveVT=8
+
+	ЛОГИРОВАНИЕ SUDO
+// создаём каталог логирования:
+$mkdir /var/log/sudo
+$touch /var/log/sudo/sudo.log
+// ещё раз правим конфиг судо
+$nano /etc/sudoers
+// добавляем строку в секцию defaults
+Defaults        logfile=/var/log/sudo/sudo.log
+// совершаем действие под пользователем через sudo
+// проверяем, заолгировалось ли оно:
+$nano /var/log/sudo/sudo.log
+
+	СОЗДАНИЕ СКРИПТА
+// для утилиты netstat
+$apt-get install net-tools
+$su user
+$cd ~/
+$touch monitoring.sh
+$chmod +x ./monitoring.sh
+$nano monitoring.sh
+// заполняем скрипт командами
+// по примеру из этого гита
+
+	НАСТРОЙКА CRON
+// добавляем скрипт в расписание
+$crontab -e
+*/10 * * * *	sh /home/<user>/monitoring.sh
